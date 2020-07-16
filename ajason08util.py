@@ -9,6 +9,11 @@ Original file is located at
 **Debugging**
 """
 
+# FOR NEXT UPDATE
+# (For performance measurement, time.clock() is actually preferred, since it can't be interfered with if the system clock gets messed with, but .time() does mostly accomplish the same purpose.) –
+# https://stackoverflow.com/a/56655327/9356315
+# timeit.default_timer is assigned to time.time() or time.clock() depending on OS.
+
 import time
 class Stopwatch:
   def __init__(self):
@@ -33,6 +38,7 @@ class Stopwatch:
     self._laps.append(lap)    
     if verbose: print(lap)        
     self._last_started = time.time()
+    return lap
 
   # read-only properties
   @property
@@ -41,6 +47,17 @@ class Stopwatch:
   @property
   def totaltime(self):
    return self._totaltime
+  
+  ### USAGE example
+  # watch = Stopwatch()
+  # time.sleep(3)
+  # watch.stop()
+  # time.sleep(3)
+  # watch.stop()
+  # print(watch.laps)
+  # print(watch.totaltime)
+
+
 
 class Ajfiles:
   # convert a byte amount into kilobytes, megabytes or gigabytes
