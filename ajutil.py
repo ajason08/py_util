@@ -25,9 +25,9 @@ class Stopwatch:
   def _humanizetime(self,elapsed_time):
     mins = int(elapsed_time / 60)
     secs = int(elapsed_time - (mins * 60))
-    return f'Time: {mins}m {secs}s'    
+    return f'{mins}m {secs}s'    
 
-  def stop(self, verbose=True):
+  def stop(self, v=False):
     stoptimer = time.time()
     elapsed_time = stoptimer - self._started
     self._totaltime = self._humanizetime(elapsed_time)
@@ -36,9 +36,16 @@ class Stopwatch:
     elapsed_time = stoptimer - self._last_started    
     lap = self._humanizetime(elapsed_time)
     self._laps.append(lap)    
-    if verbose: print(lap)        
+    if v: print(lap)        
     self._last_started = time.time()
     return lap
+  
+  @staticmethod
+  def current_time(time_format="%H:%M:%S", v=False):    
+    now = time.time()
+    now = time.strftime(time_format, time.localtime(now))
+    if v: print(now)
+    return now
 
   # read-only properties
   @property
@@ -81,15 +88,6 @@ class Ajstructures:
     for key in list(mydict.keys()):
       print(f'{key} {separator} {mydict[key]}')
 
-def testing_stopwatch():
-  mywatch = Stopwatch()
-  time.sleep(2)
-  mywatch.stop()
-  print(mywatch.laps)
-  time.sleep(3)
-  mywatch.stop()
-  print(mywatch.laps)
-  print(mywatch.totaltime)
 
 def testing_Ajfiles():
   print(Ajfiles.humanize_bytes(545646546546,measure="k"))
@@ -99,5 +97,13 @@ def testing_Ajstructures():
   reference = [6,7,8,9,16]
   print(Ajstructures.reference_list_filter(mylist,reference))
 
-testing_Ajstructures()
+#testing_Ajstructures()
 
+def testing_autor():
+  print("f")
+
+class jpandas:
+  @staticmethod
+  def column_string_joiner(df, columns_aslist, sep=" "):
+  """Take specify columns from dataframe, returns a series of concat strings using a separator."""
+  return df[columns_aslist].agg(sep.join, axis=1)
