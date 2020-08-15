@@ -31,7 +31,7 @@ class Stopwatch:
     stoptimer = time.time()
     elapsed_time = stoptimer - self._started
     self._totaltime = self._humanizetime(elapsed_time)
-    
+
     # calculating lap time
     elapsed_time = stoptimer - self._last_started    
     lap = self._humanizetime(elapsed_time)
@@ -39,7 +39,7 @@ class Stopwatch:
     if v: print(lap)        
     self._last_started = time.time()
     return lap
-  
+
   @staticmethod
   def current_time(time_format="%H:%M:%S", v=False):    
     now = time.time()
@@ -54,16 +54,6 @@ class Stopwatch:
   @property
   def totaltime(self):
    return self._totaltime
-  
-  ### USAGE example
-  # watch = Stopwatch()
-  # time.sleep(3)
-  # watch.stop()
-  # time.sleep(3)
-  # watch.stop()
-  # print(watch.laps)
-  # print(watch.totaltime)
-
 
 
 class Ajfiles:
@@ -77,6 +67,7 @@ class Ajfiles:
     division = switcher[measure]
     return "{} {}b".format(round(bytes_size/division, round_degree),measure)
 
+
 class Ajstructures:
   # Filter a list, based on another list
   def reference_list_filter(mylist, reference):  
@@ -89,21 +80,9 @@ class Ajstructures:
       print(f'{key} {separator} {mydict[key]}')
 
 
-def testing_Ajfiles():
-  print(Ajfiles.humanize_bytes(545646546546,measure="k"))
-
-def testing_Ajstructures():
-  mylist = [2,4,6,8,10,12,14,16]
-  reference = [6,7,8,9,16]
-  print(Ajstructures.reference_list_filter(mylist,reference))
-
-#testing_Ajstructures()
-
-def testing_autor():
-  print("f")
-
 class jpandas:
   @staticmethod
   def column_string_joiner(df, columns_aslist, sep=" "):
-  """Take specify columns from dataframe, returns a series of concat strings using a separator."""
-  return df[columns_aslist].agg(sep.join, axis=1)
+    """Take specify columns from dataframe, returns a series of
+     concat strings using a separator."""
+    return df[columns_aslist].agg(sep.join, axis=1)

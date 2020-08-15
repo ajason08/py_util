@@ -146,3 +146,18 @@ class BERTGRU(nn.Module):
       #output = [batch size, out dim]
       
       return output
+
+class BERTAlone(nn.Module):
+  def __init__(self, bert, dropout, output_dim):      
+      super().__init__()      
+      self.bert = bert      
+      embedding_dim = bert.config.to_dict()['hidden_size']      
+      self.dropout = nn.Dropout(dropout)
+      self.out = nn.Linear(embedding_dim, output_dim)
+      
+  def forward(self, text):                 
+      embedded = self.bert(text)[0]   
+      embedded = torch.mean(embedded, 1) # aggregating all wordvectors per sentences
+      embedded = self.dropout(embedded)  
+      output = self.out(embedded)      
+      return output
