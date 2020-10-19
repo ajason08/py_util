@@ -31,70 +31,13 @@ def seed_torch(seed=1234, cudnn=True, benchmark=False):
     # https://discuss.pytorch.org/t/random-seed-initialization/7854/4
     #torch.cuda.manual_seed_all(seed) 
 
-from torchtext.data import Field, Dataset, Example
+
+
 import pandas as pd
 
-class DataFrameDataset(Dataset):
-    """Class for using pandas DataFrames as a datasource"""
-    def __init__(self, examples, fields, filter_pred=None):
-        """
-        Create a dataset from a pandas dataframe of examples and Fields
-        Arguments:
-            examples pd.DataFrame: DataFrame of examples
-            fields {str: Field}: The Fields to use in this tuple. The
-                string is a field name, and the Field is the associated field.
-            filter_pred (callable or None): use only exanples for which
-                filter_pred(example) is true, or use all examples if None.
-                Default is None
-        """
-        self.examples = examples.apply(SeriesExample.fromSeries, args=(fields,), axis=1).tolist()
-        if filter_pred is not None:
-            self.examples = filter(filter_pred, self.examples)
-        self.fields = dict(fields)
-        # Unpack field tuples
-        for n, f in list(self.fields.items()):
-            if isinstance(n, tuple):
-                self.fields.update(zip(n, f))
-                del self.fields[n]
-
-class SeriesExample(Example):
-  """Class to convert a pandas Series to an Example"""
-
-  @classmethod
-  def fromSeries(cls, data, fields):
-      return cls.fromdict(data.to_dict(), fields)
-
-  @classmethod
-  def fromdict(cls, data, fields):
-    ex = cls()
-
-    for key, field in fields.items():
-        if key not in data:
-            raise ValueError("Specified key {} was not found in "
-            "the input data".format(key))
-        if field is not None:
-            setattr(ex, key, field.preprocess(data[key]))
-        else:
-            setattr(ex, key, data[key])
-    return ex
-
-def dataset_splitting(dfinput, text_col, label_col, path_input=True, splitting_col="splitting", sep="\t"):
-    df = pd.read_csv(dfinput, sep) if path_input else dfinput
-    rename_dict = {text_col:'text_field',
-                  label_col:'label_field'}
-    df.rename(columns=rename_dict, inplace=True)  
-    #split datasets
-    train_df = df[df[splitting_col] != "dev"]
-    dev_df = df[df[splitting_col] == "dev"]
-    #column filter
-    field_names = list(rename_dict.values())
-    train_df = train_df.filter(field_names)
-    dev_df = dev_df.filter(field_names)
-    return train_df, dev_df, field_names
-
-
-def train_model(model, train_iterator, valid_iterator, input_f, output_f, optimizer, criterion,
-                 saved_model_path, selector, avg, epochs, verbosity = False):  
+def train_model(model,  optimizer, criterion, train_iterator, valid_iterator,
+                input_f, output_f, saved_model_path, selector, avg, epochs,
+                verbosity = False):  
 # def train_model(model, train_iterator, valid_iterator, optimizer, criterion,
 #                  saved_model_path, selector, avg, epochs, verbosity = False):  
   def epoch_time(elapsed_time):    
@@ -150,20 +93,20 @@ def train_model(model, train_iterator, valid_iterator, input_f, output_f, optimi
       'epoch_result' : best_model_out,
       'best_epoch' : best_epoch+1
     })
-  return training_output
+  return training_output, model
 
 
-def test_model(model, test_iterator, input_f, output_f, saved_model_path, label_vocab, temp_path,
-              operations, gold=True, verbosity=False):
+def test_model(model, test_iterator, input_f, output_f, saved_model_path=None,
+               gold=True, label_vocab=None, temp_path=None, operations=None,
+               verbosity=False):
 # def test_model(model, test_iterator, saved_model_path, label_vocab, temp_path,
 #               operations, gold=True, verbosity=False):
   """Perform predictions given a model; return human_label_prediction and a report if possible.
   the parameter operations receives a set considering these 
   values = {"confusion","class_metrics", "average_schemes"}.
   """
-  model.load_state_dict(torch.load(saved_model_path))
+  if saved_model_path != None: model.load_state_dict(torch.load(saved_model_path))
   predictions, answers = predict_testset(model, test_iterator, input_f, output_f) 
-  #predictions, answers = predict_testset(model,iterator=test_iterator) 
   
   #(the original string labels)
   human_pred = [label_vocab.itos[pred_class] for pred_class in predictions]    
@@ -255,22 +198,37 @@ def _label_diffs(truth,pred):
   if len(difft): print(f'unexpected labels predicted: {difft}')
   if len(diffp): print(f'not predicted labels: {diffp}')  
 
+
+def count_parameters(model, verbose=True):
+    parcount = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    if verbose: print(f'The model has {parcount:,} trainable parameters')
+    return parcount
+
+
+def bert_tokenize_and_cut(bert_tokenizer):  
+  def innerfunction(sentence):
+    tokens = tokenizer.tokenize(sentence)
+    tokens = tokens[:tokenizer.max_len-2]
+    return tokens
+
+###### TO LEGACY
+
 def train(model, iterator, input_f:list, output_f:str, optimizer, criterion,avg):
-#def train(model, iterator, optimizer, criterion,avg):
     epoch_loss = epoch_acc = 0
     epoch_prec = epoch_rec = epoch_f1 =0
     
     model.train()
     iter_len = len(iterator)
     for batch in iterator:        
-        optimizer.zero_grad()
-        # the att .text_field and .label_field came from Dataset(pytorch class)
-        # (also see dataset_splitting function)        
+        optimizer.zero_grad()        
         batch_inputs = [getattr(batch,in_f) for in_f in input_f]
         batch_labels = getattr(batch,output_f)
         predictions = model(*batch_inputs)        
         loss = criterion(predictions, batch_labels)
         acc, (batch_prec, batch_rec, batch_f1, _) = mlscoring(batch_labels, predictions, avgScheme=avg)
+        ## This is the previous, and originally hard coded implementation
+        ## the att .text_field and .label_field came from Dataset(pytorch class)
+        ## Also, see Example (specialized as JExample) and Dataset classes
         #predictions = model(batch.text_field)
         #loss = criterion(predictions, batch.label_field)
         #acc, (batch_prec, batch_rec, batch_f1, _) = mlscoring(batch.label_field, predictions, avgScheme=avg)
@@ -290,8 +248,8 @@ def train(model, iterator, input_f:list, output_f:str, optimizer, criterion,avg)
     epoch_f1 = epoch_f1 / iter_len 
     return epoch_loss, epoch_acc, epoch_prec, epoch_rec, epoch_f1
 
+
 def evaluate(model, iterator, input_f, output_f, criterion, avg):   
-#def evaluate(model, iterator, criterion, avg):   
     epoch_loss = epoch_acc = 0
     epoch_prec = epoch_rec = epoch_f1 =0
 
@@ -304,9 +262,6 @@ def evaluate(model, iterator, input_f, output_f, criterion, avg):
             predictions = model(*batch_inputs)        
             loss = criterion(predictions, batch_labels)
             acc, (batch_prec, batch_rec, batch_f1, _) = mlscoring(batch_labels, predictions, avgScheme=avg)
-            # predictions = model(batch.text_field)
-            # loss = criterion(predictions, batch.label_field)                                    
-            # acc, (batch_prec, batch_rec, batch_f1, _) = mlscoring(batch.label_field, predictions, avgScheme=avg)
             epoch_loss += loss.item()
             epoch_acc += acc.item()     
             epoch_prec += batch_prec
@@ -319,8 +274,8 @@ def evaluate(model, iterator, input_f, output_f, criterion, avg):
         epoch_f1 = epoch_f1 / iter_len 
     return epoch_loss, epoch_acc, epoch_prec, epoch_rec, epoch_f1
 
+
 def predict_testset(model,iterator, input_f, output_f):
-#def predict_testset(model,iterator):  
   model.eval()
   mypredictions = []
   correct_answers = []
@@ -328,27 +283,90 @@ def predict_testset(model,iterator, input_f, output_f):
     for batch in iterator:
       batch_inputs = [getattr(batch,in_f) for in_f in input_f]
       batch_labels = getattr(batch,output_f)
-      predictions = model(*batch_inputs)
-
-      #predictions = model(batch.text_field)
+      predictions = model(*batch_inputs)      
       max_preds = predictions.argmax(dim = 1)
-      mypredictions.append(max_preds)
-      
-      correct_answers.append(batch_labels)
-      #correct_answers.append(batch.label_field)
+      mypredictions.append(max_preds)      
+      correct_answers.append(batch_labels)    
+      batch_inputs[0]
   mypredictions = torch.cat(mypredictions).tolist()
-  correct_answers = torch.cat(correct_answers).tolist() 
+  correct_answers = torch.cat(correct_answers).tolist()
   return mypredictions, correct_answers
 
 
-def bert_tokenize_and_cut(bert_tokenizer):  
-  def innerfunction(sentence):
-    tokens = tokenizer.tokenize(sentence)
-    tokens = tokens[:tokenizer.max_len-2]
-    return tokens
+def dataset_splitting(dfinput, text_col, label_col, path_input=True, splitting_col="splitting", sep="\t"):
+    df = pd.read_csv(dfinput, sep) if path_input else dfinput
+    rename_dict = {text_col:'text_field',
+                  label_col:'label_field'}
+    df.rename(columns=rename_dict, inplace=True)  
+    #split datasets
+    train_df = df[df[splitting_col] != "dev"]
+    dev_df = df[df[splitting_col] == "dev"]
+    #column filter
+    field_names = list(rename_dict.values())
+    train_df = train_df.filter(field_names)
+    dev_df = dev_df.filter(field_names)
+    return train_df, dev_df, field_names
 
-def count_parameters(model, verbose=True):
-    parcount = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    if verbose: print(f'The model has {parcount:,} trainable parameters')
-    return parcount
 
+from  torchtext.data import Example, Field, LabelField, Dataset
+class JExample(Example):
+  """Class to convert a pandas Series (row) to an Example"""
+  @classmethod
+  def fromdict(cls, data, fields):
+    """creates new attributes in the Examples using specified keys and fields,
+    keys most probably match the dataframe column_names.
+    Resulting attributes will contain the preprocessed information"""
+    ex = cls()
+    for key, field in fields.items():
+        if key not in data:
+            raise ValueError("Specified key {} was not found in "
+            "the input data".format(key))
+        if field is not None:
+            setattr(ex, key, field.preprocess(data[key])) 
+        else:
+            setattr(ex, key, data[key])
+    return ex    
+
+
+def dataframe2dataset(df,fields):  
+  examples = df.apply(JExample.fromdict, args=(fields,), axis=1).tolist()
+  return Dataset(examples, list(fields.items()))
+
+
+def data_wrap(column_names, field_types, tokenizer, df, vocab_size, vec):
+  def create_field(field_type,tokenizer=None):
+    """Return a Field-like object using specified config.""" 
+    if field_type == "label":
+      return LabelField(dtype = torch.long)  
+    elif field_type == "text":
+      return Field(tokenize = 'spacy', lower= True)
+    elif field_type == "contextual":
+      return Field(batch_first = True,
+                        use_vocab = False,
+                        tokenize =  bert_tokenize_and_cut(tokenizer),
+                        preprocessing = tokenizer.convert_tokens_to_ids,
+                        init_token = tokenizer.cls_token_id,
+                        eos_token = tokenizer.sep_token_id,
+                        pad_token = tokenizer.pad_token_id,
+                        unk_token = tokenizer.unk_token_id)
+    else: raise ValueError(f'{field_type} was not recognized')
+  assert len(column_names) == len(field_types), "lens did not match"
+  
+  # Fields intialization for Dataset creation
+  fields = {}
+  for i,c in enumerate(column_names):
+    fields[c] = create_field(field_types[i], tokenizer)  
+  dataset = dataframe2dataset(df,fields)  
+ 
+  # Fields building vocab
+  for i,c in enumerate(column_names):
+    if field_types[i] == "label":
+      fields[c].build_vocab(dataset)
+    elif field_types[i] == "text":
+      fields[c].build_vocab(dataset,
+                            max_size = vocab_size, 
+                            vectors = vec,
+                            unk_init = torch.Tensor.normal_)
+    elif field_types[i] == "contextual":
+      pass    
+  return dataset, fields

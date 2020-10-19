@@ -80,9 +80,18 @@ class Ajstructures:
       print(f'{key} {separator} {mydict[key]}')
 
 
-class jpandas:
-  @staticmethod
-  def column_string_joiner(df, columns_aslist, sep=" "):
-    """Take specify columns from dataframe, returns a series of
-     concat strings using a separator."""
-    return df[columns_aslist].agg(sep.join, axis=1)
+
+from IPython.display import Markdown, HTML, display
+def color(string,fc="yellow"):
+  return f'<font color={fc}>{string}</font>'
+def jprint(text):
+  display(Markdown(text))
+
+  
+def inspect_obj(obj, mro=True):
+  if mro: print(f'class = {type(obj)}; ancestors: {type(obj).__mro__}')
+  print(type(obj))
+  for att in dir(obj):
+    try: print (f'{att} : {getattr(obj,att)}\n')
+    except: jprint(f'{color("some exception",fc)}')
+
